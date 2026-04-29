@@ -1,6 +1,7 @@
 import type { MDXComponents } from "mdx/types"
 import * as React from "react"
 import { CodeBlock } from "@workspace/ui/components/code-block"
+import { slugifyHeading } from "@/lib/headings"
 
 function extractFigcaptionText(node: React.ReactNode): string | undefined {
   let title: string | undefined
@@ -32,10 +33,20 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
     h1: ({ children }) => <h1 className="text-lg font-semibold">{children}</h1>,
     h2: ({ children }) => (
-      <h2 className="mt-6 text-base font-medium">{children}</h2>
+      <h2
+        id={slugifyHeading(children)}
+        className="mt-6 scroll-mt-6 text-base font-medium"
+      >
+        {children}
+      </h2>
     ),
     h3: ({ children }) => (
-      <h3 className="mt-4 text-base font-medium">{children}</h3>
+      <h3
+        id={slugifyHeading(children)}
+        className="mt-4 scroll-mt-6 text-base font-medium"
+      >
+        {children}
+      </h3>
     ),
     p: ({ children }) => (
       <p className="text-base leading-7 text-muted-foreground">{children}</p>
@@ -83,7 +94,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     ),
     tr: ({ children }) => <tr>{children}</tr>,
     th: ({ children }) => (
-      <th className="px-4 py-2 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase not-last:border-r not-last:border-border">
+      <th className="px-4 py-2 text-left text-base font-medium tracking-wide text-muted-foreground uppercase not-last:border-r not-last:border-border">
         {children}
       </th>
     ),

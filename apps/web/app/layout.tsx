@@ -21,6 +21,20 @@ export const metadata: Metadata = {
     siteName: "Hypercommit",
     type: "website",
     locale: "en_US",
+    images: [
+      {
+        url: "/api/og/og-31",
+        width: 1200,
+        height: 630,
+        alt: "Hypercommit",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Hypercommit",
+    description: "Level up as a software engineer.",
+    images: ["/api/og/og-31"],
   },
 }
 

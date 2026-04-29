@@ -1,6 +1,7 @@
 import Image from "next/image"
 import Link from "next/link"
-import illustration from "./courses/build-your-own-git/illustration.webp"
+import illustration from "./build-your-own-git/illustration.webp"
+import { LogoMenu } from "./logo-menu"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,44 +21,35 @@ export default function Page() {
           </BreadcrumbList>
         </Breadcrumb>
         <div>
-          <Image
-            src="/logo.svg"
-            alt="Hypercommit logo"
-            width={40}
-            height={40}
-            priority
-            className="mb-3 size-10 rounded-full"
-          />
+          <LogoMenu />
           <h1 className="text-lg font-semibold">Hypercommit</h1>
           <p className="text-lg text-muted-foreground">
             Level up as a software engineer, one commit at a time.
           </p>
         </div>
 
-        <div className="mt-4">
-          <Link
-            tabIndex={0}
-            className="no-underline"
-            href="/courses/build-your-own-git"
-          >
-            <div className="pointer-events-auto relative flex aspect-1050/660 w-full items-center justify-center overflow-hidden rounded-lg bg-muted shadow-sm">
-              <Image
-                alt="Thumbnail for Build your own Git"
-                src={illustration}
-                width={illustration.width}
-                height={illustration.height}
-                sizes="(max-width: 768px) 100vw, 1050px"
-                className="object-cover"
-              />
-            </div>
-          </Link>
+        <Link
+          tabIndex={0}
+          className="group/course-card mt-4 block rounded-lg no-underline transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+          href="/build-your-own-git"
+        >
+          <div className="pointer-events-auto relative flex aspect-1050/660 w-full items-center justify-center overflow-hidden rounded-lg bg-muted shadow-sm">
+            <Image
+              alt="Thumbnail for Build your own Git"
+              src={illustration}
+              width={illustration.width}
+              height={illustration.height}
+              sizes="(max-width: 768px) 100vw, 1050px"
+              className="object-cover"
+            />
+          </div>
           <div>
             <h3 className="mt-4 text-base font-medium">Build your own Git</h3>
             <p className="text-base leading-6 text-muted-foreground">
               Implement the most used version control system in Go.
             </p>
           </div>
-        </div>
+        </Link>
       </div>
     </div>
   )

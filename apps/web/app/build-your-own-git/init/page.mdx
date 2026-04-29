@@ -1,0 +1,164 @@
+import { DirectoryTree } from "@/components/directory-tree"
+
+# Repository initialization
+
+Every Git repository is, at its core, a directory called `.git` sitting alongside
+your working tree.
+
+`git init` creates that directory and seeds it with the
+minimum structure Git needs to start tracking changes.
+
+In this lesson you'll reimplement `git init` in Go, and along the way understand
+what each file means.
+
+## What does `git init` actually do?
+
+Run it on an empty folder, then peek inside:
+
+```bash
+mkdir demo && cd demo
+git init
+ls .git
+```
+
+You'll see something like:
+
+<DirectoryTree
+  paths={[
+    ".git/HEAD",
+    ".git/config",
+    ".git/description",
+    ".git/hooks/",
+    ".git/info/",
+    ".git/objects/",
+    ".git/refs/",
+  ]}
+/>
+
+Five entries are mandatory; the rest are convenience.
+
+The bare minimum a Git client needs to consider a directory a valid repository is:
+
+| Entry         | Purpose                                                     |
+| ------------- | ----------------------------------------------------------- |
+| `HEAD`        | A pointer to the current branch                             |
+| `objects/`    | Content-addressable storage for blobs, trees, commits, tags |
+| `refs/heads/` | Branch tips                                                 |
+| `refs/tags/`  | Tag refs                                                    |
+| `config`      | Repository-local configuration                              |
+
+Everything else (`description`, `hooks/`, `info/exclude`) is optional. Git
+itself works without them.
+
+## The Go program
+
+Create `init.go`:
+
+```go title="cmd/init/init.go"
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, "fatal:", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	gitDir := ".git"
+
+	dirs := []string{
+		gitDir,
+		filepath.Join(gitDir, "objects"),
+		filepath.Join(gitDir, "refs", "heads"),
+		filepath.Join(gitDir, "refs", "tags"),
+	}
+	for _, d := range dirs {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			return fmt.Errorf("mkdir %s: %w", d, err)
+		}
+	}
+
+	files := map[string]string{
+		filepath.Join(gitDir, "HEAD"):   "ref: refs/heads/main\n",
+		filepath.Join(gitDir, "config"): defaultConfig,
+	}
+	for path, content := range files {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", path, err)
+		}
+	}
+
+	abs, _ := filepath.Abs(gitDir)
+	fmt.Printf("Initialized empty Git repository in %s/\n", abs)
+	return nil
+}
+
+const defaultConfig = `[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+`
+```
+
+Build and run:
+
+```bash
+go build -o mygit ./cmd/init
+mkdir scratch && cd scratch
+../mygit
+```
+
+The output should match real Git's, byte for byte:
+
+```text
+Initialized empty Git repository in /tmp/scratch/.git/
+```
+
+## Verify it's a real repo
+
+The acid test: hand the directory to actual Git and see if it accepts it.
+
+```bash
+git status
+```
+
+If you get `On branch main` and `No commits yet`, you've built something Git
+considers a valid repository.
+
+You can now `git add` files, and Git will read your `HEAD` and `config` like it would its own.
+
+## What we skipped (on purpose)
+
+Real `git init` does a few more things you don't need yet:
+
+1. **Reinit detection.** If `.git` already exists, real Git updates it instead of
+   creating it. We'll add that next.
+2. **Template directory.** Git copies hook samples and `info/exclude` from
+   `/usr/share/git-core/templates`. Skip — they're optional.
+3. **`--bare` flag.** A bare repo has no working tree; the contents of `.git`
+   live at the top level. One-line change once we add flag parsing.
+4. **`--initial-branch=<name>`.** We hardcoded `main`. Easy upgrade.
+
+## Exercise
+
+Extend your `init` to:
+
+- Accept an optional `<directory>` argument: `mygit init my-repo`.
+- Detect an existing `.git/` and print
+  `Reinitialized existing Git repository in <path>/.git/` instead.
+- Add a `--initial-branch` flag.
+
+Once that works, you've matched ~95% of `git init`'s real behavior. The
+remaining 5% is templates and bare-repo plumbing — both worth poking at, but
+neither is on the critical path to a working Git.
+
+Next lesson: **`git hash-object`** — how Git turns a file into a blob and
+shoves it into `objects/`.

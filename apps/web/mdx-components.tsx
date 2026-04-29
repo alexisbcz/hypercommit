@@ -60,7 +60,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     ),
     code: ({ children, ...props }) => (
       <code
-        className="rounded border bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground"
+        className="rounded border bg-muted px-1 py-0.5 font-mono text-base text-foreground"
         {...props}
       >
         {children}

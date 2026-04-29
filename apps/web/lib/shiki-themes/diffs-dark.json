@@ -90,7 +90,9 @@
         "keyword.other.import",
         "storage.modifier.import",
         "storage.modifier.export",
-        "keyword.operator.new"
+        "keyword.operator.new",
+        "keyword.package",
+        "keyword.import"
       ],
       "settings": { "foreground": "#FF678D" }
     },
@@ -99,7 +101,13 @@
         "storage.type",
         "storage.modifier",
         "keyword.declaration",
-        "keyword.type"
+        "keyword.type",
+        "keyword.function",
+        "keyword.struct",
+        "keyword.interface",
+        "keyword.map",
+        "keyword.var",
+        "keyword.const"
       ],
       "settings": { "foreground": "#D568EA" }
     },

@@ -8,6 +8,9 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from "@workspace/ui/components/breadcrumb"
+import { buttonVariants } from "@workspace/ui/components/button"
+import { cn } from "@workspace/ui/lib/utils"
+import { TangledIcon } from "./tangled-icon"
 
 export default function Page() {
   return (
@@ -27,6 +30,16 @@ export default function Page() {
             Level up as a software engineer, one commit at a time.
           </p>
         </div>
+        <a
+          href="https://tangled.org/alexisbouchez.com/hypercommit"
+          className={cn(
+            buttonVariants({ variant: "outline", size: "lg" }),
+            "self-start text-[15px] no-underline"
+          )}
+        >
+          <TangledIcon className="mr-1 size-5" />
+          Star on Tangled
+        </a>
 
         <Link
           tabIndex={0}

@@ -11,7 +11,7 @@ import {
 import { buttonVariants } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import { TangledIcon } from "./tangled-icon"
-import { DiscordIcon } from "./discord-icon"
+import { JoinCommunityButton } from "@/components/join-community-button"
 
 export default function Page() {
   return (
@@ -33,16 +33,7 @@ export default function Page() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <a
-            href="https://discord.gg/UXJM9a2hqE"
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "gap-1 self-start text-[15px] no-underline"
-            )}
-          >
-            <DiscordIcon className="size-4" />
-            Join the community
-          </a>
+          <JoinCommunityButton />
           <a
             href="https://tangled.org/alexisbouchez.com/hypercommit"
             className={cn(

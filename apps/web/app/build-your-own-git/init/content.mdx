@@ -1,10 +1,24 @@
+import Image from "next/image"
 import { DirectoryTree } from "@/components/directory-tree"
+import { CollapsibleCode } from "@/components/collapsible-code"
+import illustration from "./illustration.webp"
 
 <div>
 <p className="font-mono text-sm text-muted-foreground">LESSON 01</p>
 
 # Repository initialization
 
+</div>
+
+<div className="pointer-events-auto relative flex aspect-1050/660 w-full max-w-md items-center justify-center overflow-hidden rounded-lg bg-muted shadow-sm">
+  <Image
+    alt="git init"
+    src={illustration}
+    width={illustration.width}
+    height={illustration.height}
+    sizes="(max-width: 768px) 100vw, 1050px"
+    className="object-cover"
+  />
 </div>
 
 Every Git repository is, at its core, a directory called `.git` sitting alongside
@@ -57,25 +71,94 @@ itself works without them.
 
 ## The Go program
 
-Create `init.go`:
+We'll build this up in three steps:
 
-```go title="cmd/init/init.go"
+1. Scaffold the project and CLI.
+2. Wire up an empty `init` subcommand.
+3. Make `init` actually create the repository.
+
+### Step 1. Bootstrap the module
+
+We'll use [urfave/cli v3](https://cli.urfave.org) for argument parsing.
+It handles subcommands, flags, and help output, which we'll need as soon
+as we add more commands.
+
+```bash
+go mod init mygit
+go get github.com/urfave/cli/v3
+```
+
+### Step 2. Scaffold the CLI
+
+Create `main.go` with a single `init` subcommand that, for now, just prints
+a placeholder. This confirms the CLI plumbing works before we touch the
+filesystem.
+
+```go title="main.go"
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"path/filepath"
+
+	"github.com/urfave/cli/v3"
 )
 
 func main() {
-	if err := run(); err != nil {
+	cmd := &cli.Command{
+		Name:  "mygit",
+		Usage: "a tiny Git",
+		Commands: []*cli.Command{
+			{
+				Name:  "init",
+				Usage: "create an empty Git repository",
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					fmt.Println("init: not implemented yet")
+					return nil
+				},
+			},
+		},
+	}
+
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, "fatal:", err)
 		os.Exit(1)
 	}
 }
+```
 
-func run() error {
+Build and run:
+
+```bash
+go build -o mygit
+./mygit init
+```
+
+You should see `init: not implemented yet`. Try `./mygit --help` and
+`./mygit init --help` too — urfave/cli generates both for free.
+
+### Step 3. Implement `init`
+
+Now replace the placeholder action with a `runInit` function that creates
+the directories and files Git needs.
+
+```go title="main.go (additions)"
+import (
+	// ...existing imports
+	"path/filepath"
+)
+
+// inside the init subcommand:
+Action: func(ctx context.Context, cmd *cli.Command) error {
+	return runInit()
+},
+```
+
+And add `runInit` below `main`:
+
+```go title="main.go"
+func runInit() error {
 	gitDir := ".git"
 
 	dirs := []string{
@@ -113,12 +196,12 @@ const defaultConfig = `[core]
 `
 ```
 
-Build and run:
+Rebuild and run it on a fresh directory:
 
 ```bash
-go build -o mygit ./cmd/init
+go build -o mygit
 mkdir scratch && cd scratch
-../mygit
+../mygit init
 ```
 
 The output should match real Git's, byte for byte:
@@ -140,6 +223,149 @@ considers a valid repository.
 
 You can now `git add` files, and Git will read your `HEAD` and `config` like it would its own.
 
+## Original implementation
+
+Git's own `init` is a few hundred lines of C spread across three files:
+`git.c` (dispatch), `builtin/init-db.c` (CLI parsing), and `setup.c`
+(repository creation). The shape is the same as your Go program. The
+difference is mostly polish: hash-format negotiation, shared-repo
+permissions, template copying, `--separate-git-dir`.
+
+<CollapsibleCode title="git.c · dispatch entries">
+
+```c title="git.c"
+{ "init", cmd_init_db },
+{ "init-db", cmd_init_db },
+```
+
+</CollapsibleCode>
+
+<CollapsibleCode title="builtin/init-db.c · option table">
+
+```c title="builtin/init-db.c"
+const struct option init_db_options[] = {
+    OPT_STRING(0, "template", &template_dir, N_("template-directory"),
+            N_("directory from which templates will be used")),
+    OPT_SET_INT(0, "bare", &is_bare_repository_cfg,
+            N_("create a bare repository"), 1),
+    {
+        .type = OPTION_CALLBACK,
+        .long_name = "shared",
+        .value = &init_shared_repository,
+        .argh = N_("permissions"),
+        .help = N_("specify that the git repository is to be shared amongst several users"),
+        .flags = PARSE_OPT_OPTARG | PARSE_OPT_NONEG,
+        .callback = shared_callback
+    },
+    OPT_BIT('q', "quiet", &flags, N_("be quiet"), INIT_DB_QUIET),
+    OPT_STRING(0, "separate-git-dir", &real_git_dir, N_("gitdir"),
+           N_("separate git dir from working tree")),
+    OPT_STRING('b', "initial-branch", &initial_branch, N_("name"),
+           N_("override the name of the initial branch")),
+    OPT_STRING(0, "object-format", &object_format, N_("hash"),
+           N_("specify the hash algorithm to use")),
+    OPT_STRING(0, "ref-format", &ref_format, N_("format"),
+           N_("specify the reference format to use")),
+    OPT_END()
+};
+```
+
+</CollapsibleCode>
+
+<CollapsibleCode title="builtin/init-db.c · resolve target directory">
+
+```c title="builtin/init-db.c"
+if (argc == 1) {
+    int mkdir_tried = 0;
+retry:
+    if (chdir(argv[0]) < 0) {
+        if (!mkdir_tried) {
+            int saved;
+            saved = repo_settings_get_shared_repository(the_repository);
+            repo_settings_set_shared_repository(the_repository, 0);
+            switch (safe_create_leading_directories_const(the_repository, argv[0])) {
+            case SCLD_OK:
+            case SCLD_PERMS:
+                break;
+            case SCLD_EXISTS:
+                errno = EEXIST;
+                /* fallthru */
+            default:
+                die_errno(_("cannot mkdir %s"), argv[0]);
+                break;
+            }
+            repo_settings_set_shared_repository(the_repository, saved);
+            if (mkdir(argv[0], 0777) < 0)
+                die_errno(_("cannot mkdir %s"), argv[0]);
+            mkdir_tried = 1;
+            goto retry;
+        }
+        die_errno(_("cannot chdir to %s"), argv[0]);
+    }
+}
+```
+
+</CollapsibleCode>
+
+<CollapsibleCode title="setup.c · init_db">
+
+```c title="setup.c"
+int init_db(const char *git_dir, const char *real_git_dir,
+            const char *template_dir, int hash,
+            enum ref_storage_format ref_storage_format,
+            const char *initial_branch,
+            int init_shared_repository, unsigned int flags)
+{
+    int reinit;
+    int exist_ok = flags & INIT_DB_EXIST_OK;
+    char *original_git_dir = real_pathdup(git_dir, 1);
+    struct repository_format repo_fmt = REPOSITORY_FORMAT_INIT;
+
+    if (real_git_dir) {
+        struct stat st;
+        if (!exist_ok && !stat(git_dir, &st))
+            die(_("%s already exists"), git_dir);
+        if (!exist_ok && !stat(real_git_dir, &st))
+            die(_("%s already exists"), real_git_dir);
+
+        set_git_dir(real_git_dir, 1);
+        git_dir = repo_get_git_dir(the_repository);
+        separate_git_dir(git_dir, original_git_dir);
+    } else {
+        set_git_dir(git_dir, 1);
+        git_dir = repo_get_git_dir(the_repository);
+    }
+    startup_info->have_repository = 1;
+
+    check_repository_format(&repo_fmt);
+    repository_format_configure(&repo_fmt, hash, ref_storage_format);
+    repo_config(the_repository, git_default_core_config, NULL);
+
+    safe_create_dir(the_repository, git_dir, 0);
+
+    reinit = create_default_files(template_dir, original_git_dir,
+                                  &repo_fmt, init_shared_repository);
+
+    if (!(flags & INIT_DB_SKIP_REFDB))
+        create_reference_database(initial_branch, flags & INIT_DB_QUIET);
+    create_object_directory();
+
+    if (!(flags & INIT_DB_QUIET)) {
+        int len = strlen(git_dir);
+        printf(reinit
+               ? _("Reinitialized existing Git repository in %s%s\n")
+               : _("Initialized empty Git repository in %s%s\n"),
+               git_dir, len && git_dir[len-1] != '/' ? "/" : "");
+    }
+
+    clear_repository_format(&repo_fmt);
+    free(original_git_dir);
+    return 0;
+}
+```
+
+</CollapsibleCode>
+
 ## What we skipped (on purpose)
 
 Real `git init` does a few more things you don't need yet:
@@ -147,7 +373,7 @@ Real `git init` does a few more things you don't need yet:
 1. **Reinit detection.** If `.git` already exists, real Git updates it instead of
    creating it. We'll add that next.
 2. **Template directory.** Git copies hook samples and `info/exclude` from
-   `/usr/share/git-core/templates`. Skip — they're optional.
+   `/usr/share/git-core/templates`. Skip; they're optional.
 3. **`--bare` flag.** A bare repo has no working tree; the contents of `.git`
    live at the top level. One-line change once we add flag parsing.
 4. **`--initial-branch=<name>`.** We hardcoded `main`. Easy upgrade.
@@ -162,8 +388,5 @@ Extend your `init` to:
 - Add a `--initial-branch` flag.
 
 Once that works, you've matched ~95% of `git init`'s real behavior. The
-remaining 5% is templates and bare-repo plumbing — both worth poking at, but
+remaining 5% is templates and bare-repo plumbing, both worth poking at but
 neither is on the critical path to a working Git.
-
-Next lesson: **`git hash-object`** — how Git turns a file into a blob and
-shoves it into `objects/`.

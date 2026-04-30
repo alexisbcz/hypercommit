@@ -43,14 +43,13 @@ function extractPre(node: React.ReactNode): React.ReactNode {
 
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
-    h1: ({ children }) => <h1 className="text-lg font-semibold">{children}</h1>,
+    h1: ({ children }) => (
+      <h1 className="text-lg font-semibold sm:text-xl">{children}</h1>
+    ),
     h2: ({ children }) => {
       const id = slugifyHeading(children)
       return (
-        <h2
-          id={id}
-          className="group mt-6 scroll-mt-6 text-base font-medium"
-        >
+        <h2 id={id} className="group mt-6 scroll-mt-6 text-base font-medium">
           {children}
           <HeadingAnchor id={id} />
         </h2>
@@ -59,10 +58,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     h3: ({ children }) => {
       const id = slugifyHeading(children)
       return (
-        <h3
-          id={id}
-          className="group mt-4 scroll-mt-6 text-base font-medium"
-        >
+        <h3 id={id} className="group mt-4 scroll-mt-6 text-base font-medium">
           {children}
           <HeadingAnchor id={id} />
         </h3>
@@ -119,7 +115,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
       </th>
     ),
     td: ({ children }) => (
-      <td className="px-4 py-2 text-sm leading-6 text-muted-foreground not-last:border-r not-last:border-border">
+      <td className="px-4 py-2 text-sm leading-6 text-foreground/80 not-last:border-r not-last:border-border">
         {children}
       </td>
     ),

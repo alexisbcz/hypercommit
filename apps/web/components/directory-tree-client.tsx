@@ -5,6 +5,19 @@ import { FileTree, useFileTree } from "@pierre/trees/react"
 
 const COMPACT_ROW_HEIGHT = 24
 
+function countVisibleNodes(paths: readonly string[]): number {
+  const nodes = new Set<string>()
+  for (const p of paths) {
+    const segments = p.split("/").filter(Boolean)
+    let acc = ""
+    for (const seg of segments) {
+      acc = acc ? `${acc}/${seg}` : seg
+      nodes.add(acc)
+    }
+  }
+  return nodes.size
+}
+
 export function DirectoryTreeClient({
   paths,
   initialExpansion,
@@ -19,7 +32,7 @@ export function DirectoryTreeClient({
     initialExpansion,
     density: "compact",
   })
-  const height = paths.length * COMPACT_ROW_HEIGHT + 16
+  const height = countVisibleNodes(paths) * COMPACT_ROW_HEIGHT + 16
 
   return (
     <div

@@ -7,7 +7,24 @@ import {
   Link04Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { defineSequence, sine } from "@web-kits/audio"
 import { cn } from "@workspace/ui/lib/utils"
+
+const noteC = sine(523.25, 0.18, 0.25)
+const noteE = sine(659.25, 0.18, 0.25)
+const noteG = sine(783.99, 0.22, 0.25)
+
+const playOpenSong = defineSequence([
+  { sound: noteC, at: 0 },
+  { sound: noteE, at: 0.09 },
+  { sound: noteG, at: 0.18 },
+])
+
+const playCloseSong = defineSequence([
+  { sound: noteG, at: 0 },
+  { sound: noteE, at: 0.09 },
+  { sound: noteC, at: 0.18 },
+])
 
 export function CollapsibleCode({
   filename,
@@ -33,7 +50,16 @@ export function CollapsibleCode({
       <div className="flex items-center gap-1.5 px-1.5 py-1">
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => {
+            const next = !open
+            setOpen(next)
+            try {
+              if (next) playOpenSong()
+              else playCloseSong()
+            } catch {
+              // ignore playback errors (autoplay policy, AudioContext, etc.)
+            }
+          }}
           aria-expanded={open}
           aria-controls={id}
           aria-label={open ? `Collapse ${filename}` : `Expand ${filename}`}

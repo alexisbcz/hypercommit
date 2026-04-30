@@ -231,18 +231,28 @@ Git's own `init` is a few hundred lines of C spread across three files:
 difference is mostly polish: hash-format negotiation, shared-repo
 permissions, template copying, `--separate-git-dir`.
 
-<CollapsibleCode title="git.c · dispatch entries">
+<div className="flex flex-col gap-1.5 *:my-0">
 
-```c title="git.c"
+<CollapsibleCode
+  filename="git.c"
+  href="https://tangled.org/alexisbouchez.com/git/blob/94f057755b7941b321fd11fec1b2e3ca5313a4e0/git.c#L592-593"
+  caption="dispatch entries"
+>
+
+```c
 { "init", cmd_init_db },
 { "init-db", cmd_init_db },
 ```
 
 </CollapsibleCode>
 
-<CollapsibleCode title="builtin/init-db.c · option table">
+<CollapsibleCode
+  filename="builtin/init-db.c"
+  href="https://tangled.org/alexisbouchez.com/git/blob/94f057755b7941b321fd11fec1b2e3ca5313a4e0/builtin/init-db.c#L90-114"
+  caption="option table"
+>
 
-```c title="builtin/init-db.c"
+```c
 const struct option init_db_options[] = {
     OPT_STRING(0, "template", &template_dir, N_("template-directory"),
             N_("directory from which templates will be used")),
@@ -272,9 +282,13 @@ const struct option init_db_options[] = {
 
 </CollapsibleCode>
 
-<CollapsibleCode title="builtin/init-db.c · resolve target directory">
+<CollapsibleCode
+  filename="builtin/init-db.c"
+  href="https://tangled.org/alexisbouchez.com/git/blob/94f057755b7941b321fd11fec1b2e3ca5313a4e0/builtin/init-db.c#L128-159"
+  caption="resolve target directory"
+>
 
-```c title="builtin/init-db.c"
+```c
 if (argc == 1) {
     int mkdir_tried = 0;
 retry:
@@ -307,9 +321,13 @@ retry:
 
 </CollapsibleCode>
 
-<CollapsibleCode title="setup.c · init_db">
+<CollapsibleCode
+  filename="setup.c"
+  href="https://tangled.org/alexisbouchez.com/git/blob/94f057755b7941b321fd11fec1b2e3ca5313a4e0/setup.c#L2765-2860"
+  caption="init_db"
+>
 
-```c title="setup.c"
+```c
 int init_db(const char *git_dir, const char *real_git_dir,
             const char *template_dir, int hash,
             enum ref_storage_format ref_storage_format,
@@ -365,6 +383,8 @@ int init_db(const char *git_dir, const char *real_git_dir,
 ```
 
 </CollapsibleCode>
+
+</div>
 
 ## What we skipped (on purpose)
 

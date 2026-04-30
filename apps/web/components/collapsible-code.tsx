@@ -10,20 +10,20 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { defineSequence, sine } from "@web-kits/audio"
 import { cn } from "@workspace/ui/lib/utils"
 
-const noteC = sine(523.25, 0.18, 0.25)
-const noteE = sine(659.25, 0.18, 0.25)
-const noteG = sine(783.99, 0.22, 0.25)
+const noteC = sine(523.25, 0.07, 0.25)
+const noteE = sine(659.25, 0.07, 0.25)
+const noteG = sine(783.99, 0.09, 0.25)
 
 const playOpenSong = defineSequence([
   { sound: noteC, at: 0 },
-  { sound: noteE, at: 0.09 },
-  { sound: noteG, at: 0.18 },
+  { sound: noteE, at: 0.04 },
+  { sound: noteG, at: 0.08 },
 ])
 
 const playCloseSong = defineSequence([
   { sound: noteG, at: 0 },
-  { sound: noteE, at: 0.09 },
-  { sound: noteC, at: 0.18 },
+  { sound: noteE, at: 0.04 },
+  { sound: noteC, at: 0.08 },
 ])
 
 export function CollapsibleCode({

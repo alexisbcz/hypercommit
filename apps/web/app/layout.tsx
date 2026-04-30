@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@workspace/ui/lib/utils"
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.hypercommit.com"),
   title: {
     default: "Hypercommit",
     template: "%s - Hypercommit",

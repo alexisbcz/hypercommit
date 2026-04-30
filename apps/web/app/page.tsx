@@ -10,7 +10,7 @@ import {
 } from "@workspace/ui/components/breadcrumb"
 import { buttonVariants } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
-import { TangledIcon } from "./tangled-icon"
+import { GitHubIcon } from "./github-icon"
 import { JoinCommunityButton } from "@/components/join-community-button"
 
 export default function Page() {
@@ -35,14 +35,14 @@ export default function Page() {
         <div className="flex flex-wrap items-center gap-2">
           <JoinCommunityButton />
           <a
-            href="https://tangled.org/alexisbouchez.com/hypercommit"
+            href="https://github.com/alexisbcz/hypercommit"
             className={cn(
               buttonVariants({ variant: "outline", size: "lg" }),
               "gap-1 self-start text-[15px] no-underline"
             )}
           >
-            <TangledIcon className="mr-1 size-4" />
-            Star on Tangled
+            <GitHubIcon className="mr-1 size-4" />
+            Star on GitHub
           </a>
         </div>
 

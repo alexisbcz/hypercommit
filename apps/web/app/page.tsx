@@ -11,10 +11,11 @@ import {
 import { buttonVariants } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import { TangledIcon } from "./tangled-icon"
+import { DiscordIcon } from "./discord-icon"
 
 export default function Page() {
   return (
-    <div className="flex min-h-svh p-6">
+    <div className="flex min-h-svh p-8">
       <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
         <Breadcrumb>
           <BreadcrumbList>
@@ -30,16 +31,29 @@ export default function Page() {
             Level up as a software engineer, one commit at a time.
           </p>
         </div>
-        <a
-          href="https://tangled.org/alexisbouchez.com/hypercommit"
-          className={cn(
-            buttonVariants({ variant: "outline", size: "lg" }),
-            "self-start text-[15px] no-underline"
-          )}
-        >
-          <TangledIcon className="mr-1 size-5" />
-          Star on Tangled
-        </a>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="https://discord.gg/UXJM9a2hqE"
+            className={cn(
+              buttonVariants({ size: "lg" }),
+              "gap-1 self-start text-[15px] no-underline"
+            )}
+          >
+            <DiscordIcon className="size-4" />
+            Join the community
+          </a>
+          <a
+            href="https://tangled.org/alexisbouchez.com/hypercommit"
+            className={cn(
+              buttonVariants({ variant: "outline", size: "lg" }),
+              "gap-1 self-start text-[15px] no-underline"
+            )}
+          >
+            <TangledIcon className="mr-1 size-4" />
+            Star on Tangled
+          </a>
+        </div>
 
         <Link
           tabIndex={0}

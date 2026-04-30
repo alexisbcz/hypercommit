@@ -22,6 +22,7 @@ const withMDX = createMDX({
 const nextConfig = {
   pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
   transpilePackages: ["@workspace/ui"],
+  devIndicators: false,
 }
 
 export default withMDX(nextConfig)

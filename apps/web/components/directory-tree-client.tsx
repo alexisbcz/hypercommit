@@ -22,7 +22,10 @@ export function DirectoryTreeClient({
   const height = paths.length * COMPACT_ROW_HEIGHT + 16
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border/70 bg-card text-sm shadow-sm">
+    <div
+      className="overflow-hidden rounded-lg border border-border/70 bg-card text-sm shadow-sm"
+      style={{ ["--trees-font-size-override" as string]: "0.875rem" }}
+    >
       <FileTree
         model={model}
         preloadedData={preloadedData}

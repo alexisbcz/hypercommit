@@ -3,6 +3,18 @@ import * as React from "react"
 import { CodeBlock } from "@workspace/ui/components/code-block"
 import { slugifyHeading } from "@/lib/headings"
 
+function HeadingAnchor({ id }: { id: string }) {
+  return (
+    <a
+      href={`#${id}`}
+      aria-label="Link to this section"
+      className="ml-2 font-normal text-foreground/30 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+    >
+      #
+    </a>
+  )
+}
+
 function extractFigcaptionText(node: React.ReactNode): string | undefined {
   let title: string | undefined
   React.Children.forEach(node, (child) => {
@@ -32,24 +44,32 @@ function extractPre(node: React.ReactNode): React.ReactNode {
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
     h1: ({ children }) => <h1 className="text-lg font-semibold">{children}</h1>,
-    h2: ({ children }) => (
-      <h2
-        id={slugifyHeading(children)}
-        className="mt-6 scroll-mt-6 text-base font-medium"
-      >
-        {children}
-      </h2>
-    ),
-    h3: ({ children }) => (
-      <h3
-        id={slugifyHeading(children)}
-        className="mt-4 scroll-mt-6 text-base font-medium"
-      >
-        {children}
-      </h3>
-    ),
+    h2: ({ children }) => {
+      const id = slugifyHeading(children)
+      return (
+        <h2
+          id={id}
+          className="group mt-6 scroll-mt-6 text-base font-medium"
+        >
+          {children}
+          <HeadingAnchor id={id} />
+        </h2>
+      )
+    },
+    h3: ({ children }) => {
+      const id = slugifyHeading(children)
+      return (
+        <h3
+          id={id}
+          className="group mt-4 scroll-mt-6 text-base font-medium"
+        >
+          {children}
+          <HeadingAnchor id={id} />
+        </h3>
+      )
+    },
     p: ({ children }) => (
-      <p className="text-base leading-7 text-muted-foreground">{children}</p>
+      <p className="text-base leading-7 text-foreground/80">{children}</p>
     ),
     a: ({ children, href }) => (
       <a
@@ -60,18 +80,18 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
       </a>
     ),
     ul: ({ children }) => (
-      <ul className="ms-5 list-disc space-y-1 text-base leading-7 text-muted-foreground">
+      <ul className="ms-5 list-disc space-y-1 text-base leading-7 text-foreground/80">
         {children}
       </ul>
     ),
     ol: ({ children }) => (
-      <ol className="ms-5 list-decimal space-y-1 text-base leading-7 text-muted-foreground">
+      <ol className="ms-5 list-decimal space-y-1 text-base leading-7 text-foreground/80">
         {children}
       </ol>
     ),
     code: ({ children, ...props }) => (
       <code
-        className="rounded border bg-muted px-1 py-0.5 font-mono text-base text-foreground"
+        className="rounded border bg-muted px-1 py-0.5 font-mono text-sm text-foreground"
         {...props}
       >
         {children}

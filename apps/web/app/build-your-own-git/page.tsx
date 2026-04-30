@@ -37,7 +37,7 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return (
-    <div className="flex min-h-svh p-6">
+    <div className="flex min-h-svh p-8">
       <div className="flex min-w-0 flex-col gap-4 text-sm leading-loose">
         <Breadcrumb>
           <BreadcrumbList>
@@ -77,7 +77,9 @@ export default function Page() {
                 <span className="text-sm text-muted-foreground tabular-nums">
                   01.
                 </span>
-                <span className="text-base">Repository initialization</span>
+                <span className="text-base text-foreground/80">
+                  Repository initialization
+                </span>
               </Link>
             </li>
           </ol>

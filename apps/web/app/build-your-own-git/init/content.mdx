@@ -21,26 +21,25 @@ import illustration from "./illustration.webp"
   />
 </div>
 
-Every Git repository is, at its core, a directory called `.git` sitting alongside
-your working tree.
+A Git repository is, at its core, a directory called `.git` next to your working tree. `git init` creates that directory and seeds it with the minimum structure Git needs to start tracking changes.
 
-`git init` creates that directory and seeds it with the
-minimum structure Git needs to start tracking changes.
+In this lesson you'll write `git init` in Go, but we'll do it test-first. Each test is a tiny, observable promise about what `mygit init` does. We add the test, watch it fail, then make it pass with the smallest change we can. Twelve rounds in, you'll have a working `init` that real Git accepts as one of its own.
 
-In this lesson you'll reimplement `git init` in Go, and along the way understand
-what each file means.
+## Why test-first?
 
-## What does `git init` actually do?
+`init` is a *boundary* command. It doesn't compute anything interesting; it talks to the filesystem. The only honest way to verify it is to run it and check what landed on disk. That's exactly what tests do. Writing the test first frames the work, every line of code we add exists to flip a red bar to green.
 
-Run it on an empty folder, then peek inside:
+The spec is also decentralized. It lives partly in the Git docs, partly in `setup.c`, partly in habits real users have built around `.git/HEAD`. Tests pin down which slice of that spec we're committing to. When we ship, anyone reading the test file knows what "done" means.
+
+## What `git init` actually does
+
+Run real Git on an empty folder and look:
 
 ```bash
 mkdir demo && cd demo
 git init
 ls .git
 ```
-
-You'll see something like:
 
 <DirectoryTree
   paths={[
@@ -56,43 +55,39 @@ You'll see something like:
 
 Five entries are mandatory; the rest are convenience.
 
-The bare minimum a Git client needs to consider a directory a valid repository is:
-
 | Entry         | Purpose                                                     |
 | ------------- | ----------------------------------------------------------- |
-| `HEAD`        | A pointer to the current branch                             |
+| `HEAD`        | Pointer to the current branch                               |
 | `objects/`    | Content-addressable storage for blobs, trees, commits, tags |
 | `refs/heads/` | Branch tips                                                 |
 | `refs/tags/`  | Tag refs                                                    |
 | `config`      | Repository-local configuration                              |
 
-Everything else (`description`, `hooks/`, `info/exclude`) is optional. Git
-itself works without them.
+`description`, `hooks/`, `info/exclude`, Git works without them. We'll skip them.
 
-## The Go program
-
-We'll build this up in three steps:
-
-1. Scaffold the project and CLI.
-2. Wire up an empty `init` subcommand.
-3. Make `init` actually create the repository.
-
-### Step 1. Bootstrap the module
-
-We'll use [urfave/cli v3](https://cli.urfave.org) for argument parsing.
-It handles subcommands, flags, and help output, which we'll need as soon
-as we add more commands.
+## Project setup
 
 ```bash
+mkdir mygit && cd mygit
 go mod init mygit
 go get github.com/urfave/cli/v3
 ```
 
-### Step 2. Scaffold the CLI
+We use [urfave/cli v3](https://cli.urfave.org) for argument parsing, it's small, gives us subcommands and flags, and writes `--help` for free.
 
-Create `main.go` with a single `init` subcommand that, for now, just prints
-a placeholder. This confirms the CLI plumbing works before we touch the
-filesystem.
+Two source files, one test file:
+
+<DirectoryTree
+  paths={[
+    "main.go",
+    "init.go",
+    "init_test.go",
+    "go.mod",
+    "go.sum",
+  ]}
+/>
+
+Start with the smallest `main.go` that compiles:
 
 ```go title="main.go"
 package main
@@ -108,19 +103,11 @@ import (
 func main() {
 	cmd := &cli.Command{
 		Name:  "mygit",
-		Usage: "a tiny Git",
+		Usage: "a tiny Git, built one command at a time",
 		Commands: []*cli.Command{
-			{
-				Name:  "init",
-				Usage: "create an empty Git repository",
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					fmt.Println("init: not implemented yet")
-					return nil
-				},
-			},
+			initCommand(),
 		},
 	}
-
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, "fatal:", err)
 		os.Exit(1)
@@ -128,108 +115,767 @@ func main() {
 }
 ```
 
-Build and run:
+`initCommand` doesn't exist yet, that's by design. The compile error is the *first* failing test. Give it a stub:
 
-```bash
-go build -o mygit
-./mygit init
-```
+```go title="init.go"
+package main
 
-You should see `init: not implemented yet`. Try `./mygit --help` and
-`./mygit init --help` too — urfave/cli generates both for free.
-
-### Step 3. Implement `init`
-
-Now replace the placeholder action with a `runInit` function that creates
-the directories and files Git needs.
-
-```go title="main.go (additions)"
 import (
-	// ...existing imports
-	"path/filepath"
+	"context"
+
+	"github.com/urfave/cli/v3"
 )
 
-// inside the init subcommand:
+func initCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "init",
+		Usage: "create an empty Git repository",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return nil
+		},
+	}
+}
+```
+
+`go build ./...` should succeed. We're at green-with-no-tests, the baseline.
+
+## The test harness
+
+Tests will exec the compiled binary and inspect what it wrote. That's the most honest check we can run, and it doesn't require any internal hooks into our code.
+
+```go title="init_test.go"
+package main_test
+
+import (
+	"bytes"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+var binPath string
+
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "mygit-bin-")
+	if err != nil {
+		panic(err)
+	}
+	binPath = filepath.Join(dir, "mygit")
+	build := exec.Command("go", "build", "-o", binPath, ".")
+	build.Stderr = os.Stderr
+	if err := build.Run(); err != nil {
+		panic(err)
+	}
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
+}
+
+type result struct {
+	stdout, stderr string
+	err            error
+}
+
+func run(t *testing.T, workdir string, args ...string) result {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(binPath, args...)
+	cmd.Dir = workdir
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return result{stdout: stdout.String(), stderr: stderr.String(), err: err}
+}
+
+func mustInit(t *testing.T, workdir string, args ...string) result {
+	t.Helper()
+	res := run(t, workdir, append([]string{"init"}, args...)...)
+	if res.err != nil {
+		t.Fatalf("mygit init %v failed: %v\nstdout: %s\nstderr: %s",
+			args, res.err, res.stdout, res.stderr)
+	}
+	return res
+}
+```
+
+Three things to notice:
+
+- **`TestMain` builds the binary once** into a tempdir and reuses it for every test. Building per-test would dominate runtime.
+- **`t.TempDir()`** gives each test a clean working directory that's automatically deleted afterward. We never touch the user's filesystem.
+- **`mustInit`** lifts the "command must succeed" assertion out of every test body. When something goes wrong, it dumps stdout *and* stderr, exactly what you want for a CLI test that just failed in CI.
+
+`go test ./...` should pass with no tests yet. Now we play.
+
+## Round 1: `.git` exists
+
+The smallest possible promise:
+
+```go title="init_test.go (add)"
+func TestInit_CreatesGitDirectory(t *testing.T) {
+	dir := t.TempDir()
+	mustInit(t, dir)
+	info, err := os.Stat(filepath.Join(dir, ".git"))
+	if err != nil {
+		t.Fatalf(".git not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatal(".git exists but is not a directory")
+	}
+}
+```
+
+Watch it fail:
+
+```text
+--- FAIL: TestInit_CreatesGitDirectory
+    .git not created: stat /.../mygit-test/.git: no such file or directory
+```
+
+The smallest fix: create the directory.
+
+```go title="init.go (Action body)"
+import "os"
+
 Action: func(ctx context.Context, cmd *cli.Command) error {
-	return runInit()
+	return os.MkdirAll(".git", 0o755)
 },
 ```
 
-And add `runInit` below `main`:
+`Action` runs in whatever directory the user shelled into. `os.MkdirAll(".git", ...)` resolves relative to that working directory, exactly what real `git init` does. Test passes.
 
-```go title="main.go"
+## Round 2: objects, refs/heads, refs/tags
+
+Git refuses to call a directory a repository unless it has the canonical layout. Lock it in:
+
+```go title="init_test.go (add)"
+func TestInit_CreatesObjectsAndRefs(t *testing.T) {
+	dir := t.TempDir()
+	mustInit(t, dir)
+	for _, sub := range []string{
+		".git/objects",
+		".git/refs/heads",
+		".git/refs/tags",
+	} {
+		info, err := os.Stat(filepath.Join(dir, sub))
+		if err != nil {
+			t.Errorf("%s missing: %v", sub, err)
+			continue
+		}
+		if !info.IsDir() {
+			t.Errorf("%s is not a directory", sub)
+		}
+	}
+}
+```
+
+The whole `Action` becomes a loop over the layout. Lift it into a function, it's about to grow.
+
+```go title="init.go"
+import (
+	"fmt"
+	"path/filepath"
+)
+
+Action: func(ctx context.Context, cmd *cli.Command) error {
+	return runInit()
+},
+
 func runInit() error {
 	gitDir := ".git"
-
-	dirs := []string{
+	for _, d := range []string{
 		gitDir,
 		filepath.Join(gitDir, "objects"),
 		filepath.Join(gitDir, "refs", "heads"),
 		filepath.Join(gitDir, "refs", "tags"),
-	}
-	for _, d := range dirs {
+	} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
-			return fmt.Errorf("mkdir %s: %w", d, err)
+			return fmt.Errorf("create %s: %w", d, err)
 		}
 	}
-
-	files := map[string]string{
-		filepath.Join(gitDir, "HEAD"):   "ref: refs/heads/main\n",
-		filepath.Join(gitDir, "config"): defaultConfig,
-	}
-	for path, content := range files {
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
-		}
-	}
-
-	abs, _ := filepath.Abs(gitDir)
-	fmt.Printf("Initialized empty Git repository in %s/\n", abs)
 	return nil
 }
+```
 
-const defaultConfig = `[core]
+Two tests green. The layout lives in one slice, single source of truth, easy to extend.
+
+## Round 3: HEAD points at `main`
+
+Without `HEAD`, no Git client (real or otherwise) considers the directory a repo. Pin its content exactly:
+
+```go title="init_test.go (add)"
+func TestInit_HEADPointsAtMain(t *testing.T) {
+	dir := t.TempDir()
+	mustInit(t, dir)
+	got, err := os.ReadFile(filepath.Join(dir, ".git", "HEAD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "ref: refs/heads/main\n"
+	if string(got) != want {
+		t.Errorf("HEAD = %q, want %q", string(got), want)
+	}
+}
+```
+
+Three details that bite if you skip them:
+
+- **Trailing newline.** Real Git writes one. Some readers tolerate its absence, some don't. Match Git.
+- **The `ref:` prefix.** HEAD is a *symbolic ref*, it names another ref instead of holding a SHA directly.
+- **`main`, not `master`.** As of Git 2.30 the default branch name is configurable; `main` has been the community default since 2020.
+
+Add the file write to `runInit`:
+
+```go title="init.go (additions)"
+headPath := filepath.Join(gitDir, "HEAD")
+if err := os.WriteFile(headPath, []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+	return fmt.Errorf("write HEAD: %w", err)
+}
+```
+
+Three green.
+
+## Round 4: `config` with a `[core]` section
+
+Git reads config through `git_config_get_int("core.repositoryformatversion", ...)`. If the file is missing or that key isn't `0`, it bails. Encode the contract:
+
+```go title="init_test.go (add)"
+func TestInit_ConfigHasCoreSection(t *testing.T) {
+	dir := t.TempDir()
+	mustInit(t, dir)
+	cfg, err := os.ReadFile(filepath.Join(dir, ".git", "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(cfg)
+	for _, want := range []string{
+		"[core]",
+		"repositoryformatversion = 0",
+		"filemode = true",
+		"bare = false",
+		"logallrefupdates = true",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("config missing %q\nfull config:\n%s", want, s)
+		}
+	}
+}
+```
+
+We test *substrings*, not exact bytes. Whitespace, key order, and trailing newlines vary across real Git versions; the meaning doesn't.
+
+Add the constant and write:
+
+```go title="init.go (additions)"
+const defaultConfigContent = `[core]
 	repositoryformatversion = 0
 	filemode = true
 	bare = false
 	logallrefupdates = true
 `
+
+// inside runInit, after writing HEAD:
+configPath := filepath.Join(gitDir, "config")
+if err := os.WriteFile(configPath, []byte(defaultConfigContent), 0o644); err != nil {
+	return fmt.Errorf("write config: %w", err)
+}
 ```
 
-Rebuild and run it on a fresh directory:
+The indentation inside `defaultConfigContent` should be tab characters; Git accepts spaces too, but tabs match what real Git produces. Your editor's "indent with spaces" setting will silently bite you here, verify with `cat -A`.
+
+Four green.
+
+## Round 5: the success message
+
+`git init`'s output is parseable. CI scripts grep for the exact prefix; so will our test:
+
+```go title="init_test.go (add)"
+func TestInit_PrintsInitializedMessage(t *testing.T) {
+	dir := t.TempDir()
+	res := mustInit(t, dir)
+	abs, err := filepath.EvalSymlinks(filepath.Join(dir, ".git"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "Initialized empty Git repository in " + abs + "/\n"
+	if res.stdout != want {
+		t.Errorf("stdout = %q, want %q", res.stdout, want)
+	}
+}
+```
+
+The trailing slash matters. Real Git appends one if the path doesn't already end in `/`, so the resolved path always does. The `EvalSymlinks` call is a macOS quirk, `/var/folders/...` is a symlink to `/private/var/folders/...`, and we want both sides of the comparison to live in the same world.
+
+```go title="init.go (additions)"
+abs, err := filepath.Abs(gitDir)
+if err != nil {
+	abs = gitDir
+}
+if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+	abs = resolved
+}
+fmt.Fprintf(cmd.Writer, "Initialized empty Git repository in %s/\n", abs)
+```
+
+Use `cmd.Writer` (urfave/cli's stdout abstraction) instead of `fmt.Println`, it's the seam we'll need when we write `--quiet` later.
+
+Five green.
+
+## Round 6: reinit detection
+
+Run `git init` twice in the same place and the message changes:
+
+> Reinitialized existing Git repository in /path/to/.git/
+
+```go title="init_test.go (add)"
+func TestInit_ReinitMessage(t *testing.T) {
+	dir := t.TempDir()
+	mustInit(t, dir)
+	res := mustInit(t, dir)
+	if !strings.HasPrefix(res.stdout, "Reinitialized existing Git repository in ") {
+		t.Errorf("expected reinit message, got: %s", res.stdout)
+	}
+}
+```
+
+The honest signal that "this is already a repository" is an existing HEAD file. Detect *before* we (re)write anything, otherwise we'd see the HEAD we just wrote:
+
+```go title="init.go (additions)"
+reinit := false
+if _, err := os.Stat(filepath.Join(gitDir, "HEAD")); err == nil {
+	reinit = true
+}
+
+// ...mkdirs and writes...
+
+msg := "Initialized empty Git repository"
+if reinit {
+	msg = "Reinitialized existing Git repository"
+}
+fmt.Fprintf(cmd.Writer, "%s in %s/\n", msg, abs)
+```
+
+Six green.
+
+## Round 7: don't clobber a user-modified HEAD
+
+If someone has switched branches in this repo by editing `HEAD`, a re-`init` shouldn't reset them. Encode it:
+
+```go title="init_test.go (add)"
+func TestInit_PreservesUserModifiedHEAD(t *testing.T) {
+	dir := t.TempDir()
+	mustInit(t, dir)
+	custom := "ref: refs/heads/dev\n"
+	headPath := filepath.Join(dir, ".git", "HEAD")
+	if err := os.WriteFile(headPath, []byte(custom), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustInit(t, dir)
+	got, err := os.ReadFile(headPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != custom {
+		t.Errorf("reinit overwrote HEAD: got %q, want %q", string(got), custom)
+	}
+}
+```
+
+Two-line fix: only write if absent.
+
+```go title="init.go (replace HEAD write)"
+import "errors"
+
+if _, err := os.Stat(headPath); errors.Is(err, os.ErrNotExist) {
+	if err := os.WriteFile(headPath, []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+		return fmt.Errorf("write HEAD: %w", err)
+	}
+}
+```
+
+Apply the same write-if-absent pattern to `config`. Same reason: a user may have set `user.email` in repo config; we shouldn't blow it away.
+
+Seven green.
+
+## Round 8: optional `<directory>` argument
+
+Real Git: `git init my-repo` creates `my-repo/.git`. Ours should too.
+
+```go title="init_test.go (add)"
+func TestInit_DirectoryArgument(t *testing.T) {
+	dir := t.TempDir()
+	mustInit(t, dir, "myrepo")
+	if _, err := os.Stat(filepath.Join(dir, "myrepo", ".git", "HEAD")); err != nil {
+		t.Fatal(err)
+	}
+}
+```
+
+`runInit` needs to know about a target directory. Pass options in instead of using globals:
+
+```go title="init.go"
+type initOptions struct {
+	target string
+}
+
+Action: func(ctx context.Context, cmd *cli.Command) error {
+	target := "."
+	if cmd.NArg() > 0 {
+		target = cmd.Args().Get(0)
+	}
+	return runInit(initOptions{target: target}, cmd.Writer)
+},
+
+func runInit(opts initOptions, stdout io.Writer) error {
+	if err := os.MkdirAll(opts.target, 0o755); err != nil {
+		return fmt.Errorf("create %s: %w", opts.target, err)
+	}
+	gitDir := filepath.Join(opts.target, ".git")
+	// ...rest unchanged, using gitDir and stdout
+}
+```
+
+We `MkdirAll(opts.target, ...)` first, `git init nested/path/to/repo` should create the intermediate directories.
+
+Eight green.
+
+## Round 9: `--initial-branch`
+
+Hardcoded `main` is convenient until your team uses `trunk`. Add a flag:
+
+```go title="init_test.go (add)"
+func TestInit_InitialBranchFlag(t *testing.T) {
+	dir := t.TempDir()
+	mustInit(t, dir, "--initial-branch", "trunk")
+	got, err := os.ReadFile(filepath.Join(dir, ".git", "HEAD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "ref: refs/heads/trunk\n"
+	if string(got) != want {
+		t.Errorf("HEAD = %q, want %q", string(got), want)
+	}
+}
+```
+
+Plumb it through:
+
+```go title="init.go"
+Flags: []cli.Flag{
+	&cli.StringFlag{
+		Name:    "initial-branch",
+		Aliases: []string{"b"},
+		Usage:   "override the name of the initial branch",
+		Value:   "main",
+	},
+},
+
+// in Action:
+return runInit(initOptions{
+	target:        target,
+	initialBranch: cmd.String("initial-branch"),
+}, cmd.Writer)
+
+// in runInit's HEAD write:
+head := fmt.Sprintf("ref: refs/heads/%s\n", opts.initialBranch)
+```
+
+Nine green.
+
+## Round 10: `--bare`
+
+A bare repository has no working tree: the contents of `.git` live at the top level, and `core.bare = true`.
+
+```go title="init_test.go (add)"
+func TestInit_BareFlag(t *testing.T) {
+	dir := t.TempDir()
+	mustInit(t, dir, "--bare")
+	if _, err := os.Stat(filepath.Join(dir, ".git")); !os.IsNotExist(err) {
+		t.Errorf("bare repo should not have .git/ subdirectory")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "HEAD")); err != nil {
+		t.Fatal("bare repo missing HEAD at root:", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "objects")); err != nil {
+		t.Fatal("bare repo missing objects/ at root:", err)
+	}
+	cfg, err := os.ReadFile(filepath.Join(dir, "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cfg), "bare = true") {
+		t.Errorf("bare config missing bare = true:\n%s", cfg)
+	}
+}
+```
+
+If our code is shaped right, this is two-line surgery, `gitDir` becomes the target directly, and we pick a different `config` template:
+
+```go title="init.go"
+const bareConfigContent = `[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = true
+`
+
+// flags:
+&cli.BoolFlag{Name: "bare", Usage: "create a bare repository"},
+
+// in Action, into initOptions:
+bare: cmd.Bool("bare"),
+
+// in runInit:
+gitDir := filepath.Join(opts.target, ".git")
+if opts.bare {
+	gitDir = opts.target
+}
+
+// when writing config:
+content := defaultConfigContent
+if opts.bare {
+	content = bareConfigContent
+}
+```
+
+Ten green.
+
+## Round 11: `--quiet`
+
+CI pipelines pipe everything to `set -x`; some users want silence:
+
+```go title="init_test.go (add)"
+func TestInit_QuietFlag(t *testing.T) {
+	dir := t.TempDir()
+	res := mustInit(t, dir, "--quiet")
+	if res.stdout != "" {
+		t.Errorf("--quiet produced output: %q", res.stdout)
+	}
+}
+```
+
+```go title="init.go"
+&cli.BoolFlag{Name: "quiet", Aliases: []string{"q"}, Usage: "be quiet"},
+
+// in Action, into initOptions:
+quiet: cmd.Bool("quiet"),
+
+// in runInit, wrap the print:
+if !opts.quiet {
+	fmt.Fprintf(stdout, "%s in %s/\n", msg, abs)
+}
+```
+
+Eleven green.
+
+## Round 12: the acid test
+
+A repo isn't a repo until real Git agrees:
+
+```go title="init_test.go (add)"
+func TestInit_AcceptedByRealGit(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("real git not available")
+	}
+	dir := t.TempDir()
+	mustInit(t, dir)
+	cmd := exec.Command("git", "-C", dir, "status")
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_SYSTEM=/dev/null",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("real git rejected our repo: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "On branch main") {
+		t.Errorf("unexpected git status output:\n%s", out)
+	}
+}
+```
+
+We override `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` so the test isn't sensitive to your machine's config, your global `init.defaultBranch = trunk` would otherwise sneak in.
+
+If everything earlier was right, this passes immediately. No code change needed.
+
+Twelve green. We've shipped a Git-compatible `init`.
+
+## Run the suite
 
 ```bash
-go build -o mygit
-mkdir scratch && cd scratch
-../mygit init
+go test -v ./...
 ```
-
-The output should match real Git's, byte for byte:
 
 ```text
-Initialized empty Git repository in /tmp/scratch/.git/
+=== RUN   TestInit_CreatesGitDirectory
+--- PASS: TestInit_CreatesGitDirectory (0.15s)
+=== RUN   TestInit_CreatesObjectsAndRefs
+--- PASS: TestInit_CreatesObjectsAndRefs (0.01s)
+=== RUN   TestInit_HEADPointsAtMain
+--- PASS: TestInit_HEADPointsAtMain (0.00s)
+=== RUN   TestInit_ConfigHasCoreSection
+--- PASS: TestInit_ConfigHasCoreSection (0.00s)
+=== RUN   TestInit_PrintsInitializedMessage
+--- PASS: TestInit_PrintsInitializedMessage (0.00s)
+=== RUN   TestInit_ReinitMessage
+--- PASS: TestInit_ReinitMessage (0.01s)
+=== RUN   TestInit_PreservesUserModifiedHEAD
+--- PASS: TestInit_PreservesUserModifiedHEAD (0.01s)
+=== RUN   TestInit_DirectoryArgument
+--- PASS: TestInit_DirectoryArgument (0.00s)
+=== RUN   TestInit_InitialBranchFlag
+--- PASS: TestInit_InitialBranchFlag (0.00s)
+=== RUN   TestInit_BareFlag
+--- PASS: TestInit_BareFlag (0.00s)
+=== RUN   TestInit_QuietFlag
+--- PASS: TestInit_QuietFlag (0.00s)
+=== RUN   TestInit_AcceptedByRealGit
+--- PASS: TestInit_AcceptedByRealGit (0.02s)
+PASS
+ok  	mygit	0.617s
 ```
 
-## Verify it's a real repo
+## The final source
 
-The acid test: hand the directory to actual Git and see if it accepts it.
+For reference, here's the full `init.go` after twelve rounds, every line earned a green test.
 
-```bash
-git status
+<CollapsibleCode filename="init.go" caption="full source after Round 12">
+
+```go
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+
+	"github.com/urfave/cli/v3"
+)
+
+const defaultConfigContent = `[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+`
+
+const bareConfigContent = `[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = true
+`
+
+func initCommand() *cli.Command {
+	return &cli.Command{
+		Name:      "init",
+		Usage:     "create an empty Git repository",
+		ArgsUsage: "[directory]",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "initial-branch",
+				Aliases: []string{"b"},
+				Usage:   "override the name of the initial branch",
+				Value:   "main",
+			},
+			&cli.BoolFlag{Name: "bare", Usage: "create a bare repository"},
+			&cli.BoolFlag{Name: "quiet", Aliases: []string{"q"}, Usage: "be quiet"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			target := "."
+			if cmd.NArg() > 0 {
+				target = cmd.Args().Get(0)
+			}
+			return runInit(initOptions{
+				target:        target,
+				bare:          cmd.Bool("bare"),
+				quiet:         cmd.Bool("quiet"),
+				initialBranch: cmd.String("initial-branch"),
+			}, cmd.Writer)
+		},
+	}
+}
+
+type initOptions struct {
+	target        string
+	bare          bool
+	quiet         bool
+	initialBranch string
+}
+
+func runInit(opts initOptions, stdout io.Writer) error {
+	if stdout == nil {
+		stdout = os.Stdout
+	}
+	if err := os.MkdirAll(opts.target, 0o755); err != nil {
+		return fmt.Errorf("create %s: %w", opts.target, err)
+	}
+
+	gitDir := filepath.Join(opts.target, ".git")
+	if opts.bare {
+		gitDir = opts.target
+	}
+
+	reinit := false
+	if _, err := os.Stat(filepath.Join(gitDir, "HEAD")); err == nil {
+		reinit = true
+	}
+
+	for _, d := range []string{
+		gitDir,
+		filepath.Join(gitDir, "objects"),
+		filepath.Join(gitDir, "refs", "heads"),
+		filepath.Join(gitDir, "refs", "tags"),
+	} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			return fmt.Errorf("create %s: %w", d, err)
+		}
+	}
+
+	headPath := filepath.Join(gitDir, "HEAD")
+	if _, err := os.Stat(headPath); errors.Is(err, os.ErrNotExist) {
+		head := fmt.Sprintf("ref: refs/heads/%s\n", opts.initialBranch)
+		if err := os.WriteFile(headPath, []byte(head), 0o644); err != nil {
+			return fmt.Errorf("write HEAD: %w", err)
+		}
+	}
+
+	configPath := filepath.Join(gitDir, "config")
+	if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
+		content := defaultConfigContent
+		if opts.bare {
+			content = bareConfigContent
+		}
+		if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
+			return fmt.Errorf("write config: %w", err)
+		}
+	}
+
+	if !opts.quiet {
+		abs, err := filepath.Abs(gitDir)
+		if err != nil {
+			abs = gitDir
+		}
+		if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+			abs = resolved
+		}
+		msg := "Initialized empty Git repository"
+		if reinit {
+			msg = "Reinitialized existing Git repository"
+		}
+		fmt.Fprintf(stdout, "%s in %s/\n", msg, abs)
+	}
+	return nil
+}
 ```
 
-If you get `On branch main` and `No commits yet`, you've built something Git
-considers a valid repository.
-
-You can now `git add` files, and Git will read your `HEAD` and `config` like it would its own.
+</CollapsibleCode>
 
 ## Original implementation
 
-Git's own `init` is a few hundred lines of C spread across three files:
-`git.c` (dispatch), `builtin/init-db.c` (CLI parsing), and `setup.c`
-(repository creation). The shape is the same as your Go program. The
-difference is mostly polish: hash-format negotiation, shared-repo
-permissions, template copying, `--separate-git-dir`.
+Real `git init` lives in three C files. The shape is identical to ours; the difference is polish, hash-format negotiation, shared-repo permissions, template copying, `--separate-git-dir`. None of those are on the path to a working init.
 
 <div className="flex flex-col gap-1.5 *:my-0">
 
@@ -278,45 +924,6 @@ const struct option init_db_options[] = {
            N_("specify the reference format to use")),
     OPT_END()
 };
-```
-
-</CollapsibleCode>
-
-<CollapsibleCode
-  filename="builtin/init-db.c"
-  href="https://tangled.org/alexisbouchez.com/git/blob/94f057755b7941b321fd11fec1b2e3ca5313a4e0/builtin/init-db.c#L128-159"
-  caption="resolve target directory"
->
-
-```c
-if (argc == 1) {
-    int mkdir_tried = 0;
-retry:
-    if (chdir(argv[0]) < 0) {
-        if (!mkdir_tried) {
-            int saved;
-            saved = repo_settings_get_shared_repository(the_repository);
-            repo_settings_set_shared_repository(the_repository, 0);
-            switch (safe_create_leading_directories_const(the_repository, argv[0])) {
-            case SCLD_OK:
-            case SCLD_PERMS:
-                break;
-            case SCLD_EXISTS:
-                errno = EEXIST;
-                /* fallthru */
-            default:
-                die_errno(_("cannot mkdir %s"), argv[0]);
-                break;
-            }
-            repo_settings_set_shared_repository(the_repository, saved);
-            if (mkdir(argv[0], 0777) < 0)
-                die_errno(_("cannot mkdir %s"), argv[0]);
-            mkdir_tried = 1;
-            goto retry;
-        }
-        die_errno(_("cannot chdir to %s"), argv[0]);
-    }
-}
 ```
 
 </CollapsibleCode>
@@ -388,25 +995,17 @@ int init_db(const char *git_dir, const char *real_git_dir,
 
 ## What we skipped (on purpose)
 
-Real `git init` does a few more things you don't need yet:
-
-1. **Reinit detection.** If `.git` already exists, real Git updates it instead of
-   creating it. We'll add that next.
-2. **Template directory.** Git copies hook samples and `info/exclude` from
-   `/usr/share/git-core/templates`. Skip; they're optional.
-3. **`--bare` flag.** A bare repo has no working tree; the contents of `.git`
-   live at the top level. One-line change once we add flag parsing.
-4. **`--initial-branch=<name>`.** We hardcoded `main`. Easy upgrade.
+1. **Template directory.** Git copies hook samples and `info/exclude` from `/usr/share/git-core/templates`. Optional polish.
+2. **`--separate-git-dir`.** Lets the `.git` directory live somewhere else and leaves only a `.git` *file* (with `gitdir: <path>`) in the working tree. Two-line follow-up.
+3. **`--shared`.** Sets the umask of created files so multiple users on the same box can write into the repo. Important for shared servers, irrelevant for our tutorial.
+4. **`--object-format` / `--ref-format`.** Hash-algorithm and ref-storage selection. Both belong to a later lesson.
 
 ## Exercise
 
-Extend your `init` to:
+Ship one of these in the same TDD style, write the test, watch it fail, write the smallest code to flip it green:
 
-- Accept an optional `<directory>` argument: `mygit init my-repo`.
-- Detect an existing `.git/` and print
-  `Reinitialized existing Git repository in <path>/.git/` instead.
-- Add a `--initial-branch` flag.
+- `mygit init --separate-git-dir <path>`: write a `.git` *file* containing `gitdir: <path>` and put the actual git directory at `<path>`.
+- A `description` file inside `.git/` containing `Unnamed repository; edit this file 'description' to name the repository.\n`. Most projects ignore it; some web UIs (cgit) print it.
+- A test that asserts `mygit init` is idempotent on `config`, running it twice doesn't produce a different file.
 
-Once that works, you've matched ~95% of `git init`'s real behavior. The
-remaining 5% is templates and bare-repo plumbing, both worth poking at but
-neither is on the critical path to a working Git.
+The discipline that got us here scales: one promise per test, one minimal change per cycle. Twelve rounds for `init`, a few hundred for everything else, but `init` is shaped exactly like the rest of Git.

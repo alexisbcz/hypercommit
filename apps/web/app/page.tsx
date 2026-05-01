@@ -1,6 +1,5 @@
-import Image from "next/image"
-import Link from "next/link"
-import illustration from "./build-your-own-git/illustration.webp"
+import buildYourOwnGitIllustration from "./build-your-own-git/illustration.webp"
+import learnJavascriptIllustration from "./learn-javascript/illustration.webp"
 import { LogoMenu } from "./logo-menu"
 import {
   Breadcrumb,
@@ -12,6 +11,22 @@ import { buttonVariants } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import { GitHubIcon } from "./github-icon"
 import { JoinCommunityButton } from "@/components/join-community-button"
+import { CourseCard, type Course } from "@/components/course-card"
+
+const courses: Course[] = [
+  {
+    href: "/build-your-own-git",
+    title: "Build your own Git",
+    description: "Implement the most used version control system in Go.",
+    illustration: buildYourOwnGitIllustration,
+  },
+  {
+    href: "/learn-javascript",
+    title: "Learn JavaScript",
+    description: "Master the language that powers the web, from scratch.",
+    illustration: learnJavascriptIllustration,
+  },
+]
 
 export default function Page() {
   return (
@@ -46,28 +61,11 @@ export default function Page() {
           </a>
         </div>
 
-        <Link
-          tabIndex={0}
-          className="group/course-card mt-4 block rounded-lg no-underline transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
-          href="/build-your-own-git"
-        >
-          <div className="pointer-events-auto relative flex aspect-1050/660 w-full items-center justify-center overflow-hidden rounded-lg bg-muted shadow-sm">
-            <Image
-              alt="Thumbnail for Build your own Git"
-              src={illustration}
-              width={illustration.width}
-              height={illustration.height}
-              sizes="(max-width: 768px) 100vw, 1050px"
-              className="object-cover"
-            />
-          </div>
-          <div>
-            <h3 className="mt-4 text-base font-medium">Build your own Git</h3>
-            <p className="text-base leading-6 text-muted-foreground">
-              Implement the most used version control system in Go.
-            </p>
-          </div>
-        </Link>
+        <div className="mt-4 flex flex-col gap-6">
+          {courses.map((course) => (
+            <CourseCard key={course.href} course={course} />
+          ))}
+        </div>
       </div>
     </div>
   )

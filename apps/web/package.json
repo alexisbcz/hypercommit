@@ -9,13 +9,15 @@
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:lessons": "bun test lib/lessons/**/__tests__/*.test.ts"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.1.1",
     "@hugeicons/react": "^1.1.6",
     "@mdx-js/loader": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
+    "@monaco-editor/react": "^4.7.0",
     "@next/mdx": "^16.2.4",
     "@pierre/trees": "^1.0.0-beta.3",
     "@types/mdx": "^2.0.13",
